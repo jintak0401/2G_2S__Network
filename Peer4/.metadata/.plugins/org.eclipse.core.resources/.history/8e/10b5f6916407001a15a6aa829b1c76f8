@@ -1,0 +1,189 @@
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.Socket;
+import java.util.Random;
+import java.util.StringTokenizer;
+
+public class Download implements Runnable {
+
+	int[] bitmapIndex;
+	int[] position;
+	int port;
+	String peerIp;
+	int beforePort;
+	String beforePeerIp;
+	FileOutputStream fos;
+	DataOutputStream dos;
+	BufferedReader dis;
+	InputStream is;
+	Socket socket;
+	int beforeConfigIndex;
+	StringTokenizer st;
+	int peerBitmap;
+	int canGetBitmap;
+	byte[] buffer;
+
+	public Download() {
+		try {
+			buffer = new byte[Client.BUFFER_SIZE];
+			bitmapIndex = new int[] { -1, -1, -1 };
+			position = new int[] { -1, -1, -1 };
+			fos = new FileOutputStream(".\\To\\" + Client.filename);
+			beforePort = -1;
+			beforePeerIp = "";
+			beforeConfigIndex = -1;
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void updateFileInfo() throws Exception {
+		dos.writeBytes("fileInfo " + Client.filename + "\n");
+		String info = dis.readLine();
+		st = new StringTokenizer(info);
+		int bitmapLength = Integer.parseInt(st.nextToken());
+		if (bitmapLength == -1) {
+			return;
+		}
+		int remain = Integer.parseInt(st.nextToken());
+		long fileSize = Long.parseLong(st.nextToken());
+		Client.updateFileInfo(bitmapLength, remain, fileSize);
+	}
+
+	private synchronized void occupiedPeer() {
+		int index = 0;
+		do {
+			index = new Random().nextInt(5);
+		} while ((beforeConfigIndex == index) || (Client.occupied[index] == true));
+		Client.occupied[this.beforeConfigIndex] = false;
+		beforeConfigIndex = index;
+		Client.occupied[this.beforeConfigIndex] = true;
+	}
+
+	private void fileDonwload() {
+
+		synchronized (this) {
+
+			for (int i = 0; i < 3; i++) {
+				bitmapIndex[i] = -1;
+				position[i] = -1;
+			}
+			int i = Client.bottom;
+			while (((i < Client.bitmapLength) && (Client.willBeBitmap[i] == Client.finalBitmap[i])))
+				i++;
+			if (i < Client.bitmapLength) {
+				for (int j = 0; j < 3; j++) {
+					if ((i == Client.bitmapLength)) {
+						dos.writeBytes("end\n");
+					}
+					dos.writeBytes("bitmap " + i + "\n");
+					peerBitmap = Integer.parseInt(dis.readLine());
+					canGetBitmap = peerBitmap & (~Client.presentBitmap[i]);
+					if (canGetBitmap == 0) {
+						i++;
+						j--;
+						continue;
+					}
+					int k = 0, tmp = 1;
+					while (canGetBitmap != 0 && tmp != 0 && j < 3) {
+						if ((canGetBitmap & tmp) == 0) {
+							k++;
+							tmp <<= 1;
+						} else {
+							this.bitmapIndex[j] = i;
+							this.position[j++] = k;
+							Client.presentBitmap[i] |= tmp;
+							canGetBitmap ^= tmp;
+							k++;
+						}
+						if (canGetBitmap == 0) {
+							i++;
+						}
+					}
+				}
+			}
+		}
+
+		int tmp = 0;
+		for (int i = 0; i < 3; i++) {
+			dos.writeBytes("chunk " + bitmapIndex[i] + " " + position[i] + "\n");
+			if (bitmapIndex[i] != -1) {
+				tmp++;
+			}
+			else {
+				break;
+			}
+		}
+
+		for (int i = 0; i < tmp; i++) {
+			int readBytes = is.read(buffer);
+			Client.totalReadBytes += readBytes;
+			fos.getChannel().position(Client.BUFFER_SIZE * (32 * bitmapIndex[i] + position[i]));
+			fos.write(buffer, 0, readBytes);
+			
+		}
+
+		while (bitmapIndex != bitmapLength - 1 || presentBitmap != finalBitmap) {
+			dos.writeBytes(bitmapIndex + "\n");
+			serverBitmap = Integer.parseInt(dis.readLine());
+			canGetBitmap = serverBitmap & (~willBeBitmap);
+			int i = 0;
+			int tmp = 1;
+			while (true) {
+				if ((canGetBitmap & tmp) == 0) {
+					i++;
+					tmp <<= 1;
+				} else {
+					dos.writeBytes(i + "\n");
+					break;
+				}
+			}
+			readBytes = is.read(buffer);
+			fos.write(buffer, 0, readBytes);
+			totalReadBytes += readBytes;
+			System.out.println("In progress: " + totalReadBytes + "/" + fileSize + " Byte(s) ("
+					+ (totalReadBytes * 100 / fileSize) + " %)");
+			presentBitmap |= tmp;
+			if (presentBitmap == -1) {
+				bitmapIndex++;
+				presentBitmap = 0;
+			}
+		}
+
+	}
+
+	public void run() {
+		while (true) {
+			try {
+				occupiedPeer();
+
+				socket = new Socket(peerIp, port);
+
+				if (!socket.isConnected()) {
+					System.out.println("Socket Connect Error.");
+					System.exit(0);
+				}
+
+				dos = new DataOutputStream(socket.getOutputStream());
+				dis = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+				fos = new FileOutputStream(".\\To\\" + Client.filename);
+				is = socket.getInputStream();
+
+				if (Client.fileSize == -1) {
+					synchronized (this) {
+						if (Client.fileSize == -1) {
+							updateFileInfo();
+						}
+					}
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+
+		}
+
+	}
+}

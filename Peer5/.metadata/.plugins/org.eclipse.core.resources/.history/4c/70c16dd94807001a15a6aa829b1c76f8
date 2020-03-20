@@ -1,0 +1,32 @@
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.Socket;
+
+public class Download implements Runnable {
+
+	int[] bitmapIndex;
+	int[] position;
+	int port;
+	String peerIp;
+	FileOutputStream fos;
+	DataOutputStream dos;
+	BufferedReader dis;
+	InputStream is;
+	Socket socket;
+
+	public Download(String filename) {
+		try {
+			bitmapIndex = new int[3];
+			position = new int[3];
+			fos = new FileOutputStream(".\\To\\" + filename);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public void run() {
+
+	}
+}

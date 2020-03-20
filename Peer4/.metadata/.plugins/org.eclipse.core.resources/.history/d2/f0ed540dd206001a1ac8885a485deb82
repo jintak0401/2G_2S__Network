@@ -1,0 +1,139 @@
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.Socket;
+import java.util.StringTokenizer;
+ 
+public class Client {
+    public static final int BUFFER_SIZE = 10000;
+    public static void main(String[] args) throws Exception{
+        int[] finalBitmap;
+        int presentBitmap;
+        int bitmapLength;
+        int canGetBitmap;
+        int remain;
+        int bitmapIndex = 0;
+        int serverBitmap;
+        long totalReadBytes = 0;
+        long fileSize;
+
+        
+        String configuration = args[0];
+    	File configFile = new File(configuration);
+    	BufferedReader configReader = new BufferedReader(new FileReader(configFile));
+    	StringTokenizer st = new StringTokenizer(configReader.readLine());
+        String serverIP = st.nextToken();              //String serverIP = "127.0.0.1";
+    	configReader.close();
+        configReader = new BufferedReader(new FileReader(args[1]));
+        String filename = configReader.readLine();
+        configReader.close();
+        int port = Integer.parseInt(st.nextToken());   
+         
+        try {
+        	
+            Socket socket = new Socket(serverIP, port);
+
+             if(!socket.isConnected()){
+                 System.out.println("Socket Connect Error.");
+                 System.exit(0);
+             }
+             
+             
+             	
+         	DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
+         	BufferedReader dis = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            
+            dos.writeBytes(filename + "\n");
+            
+            st = new StringTokenizer(dis.readLine());
+            bitmapLength = Integer.parseInt(st.nextToken());
+            remain = Integer.parseInt(st.nextToken());
+            fileSize = Long.parseLong(st.nextToken());
+            
+            if (bitmapLength == -1) {
+            	System.out.println("File not Exist");
+            	dos.close();
+            	dis.close();
+            	socket.close();
+            	System.exit(0);
+            }
+            
+            finalBitmap = new int[bitmapLength];
+            
+            for (int i = 0; i < finalBitmap.length; i++) {
+            	if (i < finalBitmap.length - 1) {
+            		finalBitmap[i] = -1;
+            	}
+            	else {
+            		finalBitmap[i] = 0;
+            		if (remain == 0) {
+            			finalBitmap[i] = -1;
+            		}
+            		for (int j = 0; j < remain; j++) {
+            			finalBitmap[i] <<= 1;
+            			finalBitmap[i] |= 1;
+            		}
+            	}
+            }
+            
+            
+            FileOutputStream fos = new FileOutputStream(".\\To\\" + filename);
+            InputStream is = socket.getInputStream();
+             
+            double startTime = System.currentTimeMillis(); 
+            byte[] buffer = new byte[BUFFER_SIZE];
+            int readBytes;
+            presentBitmap = 0;
+            
+            while (bitmapIndex != bitmapLength - 1 || presentBitmap != finalBitmap[bitmapLength - 1]){
+            	dos.writeBytes(bitmapIndex + "\n");
+            	serverBitmap = Integer.parseInt(dis.readLine());
+            	canGetBitmap = serverBitmap & (~presentBitmap);
+            	int i = 0;
+            	int tmp = 1;
+            	while(true) {
+            		if ((canGetBitmap & tmp) == 0) {
+            			i++;
+            			tmp <<= 1;
+            		}
+            		else {
+            			dos.writeBytes(i + "\n");
+            			break;
+            		}
+            	}
+            	fos.getChannel().position(10000 * (32 * bitmapIndex + i));
+            	readBytes = is.read(buffer);
+            	fos.write(buffer, 0, readBytes);
+            	totalReadBytes += readBytes;
+				System.out.println("In progress: " + totalReadBytes + "/" + fileSize + " Byte(s) ("
+						+ (totalReadBytes * 100 / fileSize) + " %)");
+            	presentBitmap |= tmp;
+            	if (presentBitmap == -1) {
+            		bitmapIndex++;
+            		presentBitmap = 0;
+            	}
+            }
+            dos.writeBytes("-1\n");
+            
+            double endTime = System.currentTimeMillis();
+            double diffTime = (endTime - startTime)/ 1000;;
+ 
+            System.out.println("\nFile download complete");
+            System.out.println("time: " + diffTime+ " second(s)");
+             
+            is.close();
+            dos.close();
+            dis.close();
+            fos.close();
+            socket.close();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+    }
+}

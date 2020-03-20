@@ -1,0 +1,24 @@
+import java.io.*;
+import java.net.*;
+
+public class Download implements Runnable {
+
+	int[] bitmapIndex;
+	int[] position;
+	int port;
+	String peerIp;
+	FileOutputStream fos;
+	InputStream is;
+	
+	
+	Download(){
+		bitmapIndex = new int[3];
+		position = new int[3];
+		
+	}
+	
+
+	public void run() {
+		
+	}
+}

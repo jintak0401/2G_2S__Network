@@ -1,0 +1,54 @@
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.Socket;
+import java.util.Random;
+
+public class Download implements Runnable {
+
+	int[] bitmapIndex;
+	int[] position;
+	int port;
+	String peerIp;
+	int	beforePort;
+	String beforePeerIp;
+	FileOutputStream fos;
+	DataOutputStream dos;
+	BufferedReader dis;
+	InputStream is;
+	Socket socket;
+	int beforeConfigIndex;
+
+	public Download() {
+		try {
+			bitmapIndex = new int[3];
+			position = new int[3];
+			fos = new FileOutputStream(".\\To\\" + Client.filename);
+			beforePort = -1;
+			beforePeerIp = "";
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	private synchronized void updateFileInfo() {
+		
+	}
+	
+	private synchronized void willBeUpdate() {
+		int index = 0;
+		do {
+			new Random().nextInt(5);
+		} while((beforeConfigIndex == index) || (Client.occupied[index] == true));
+		Client.occupied[this.beforeConfigIndex] = false;
+		beforeConfigIndex = index;
+		
+	}
+	
+	private synchronized void 
+
+	public void run() {
+
+	}
+}

@@ -1,0 +1,232 @@
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.util.StringTokenizer;
+
+public class Peer {
+	public static final int BUFFER_SIZE = 10000;
+	public static int[] finalBitmap;
+	public static int[] willBeBitmap;
+	public static int[] presentBitmap;
+	public static int bottom;
+	public static int remain; // getFileInfo
+	public static int bitmapLength; // getFileInfo
+	public static String[] peerIp; // getConfig
+	public static int[] port; // getConfig
+	public static String filename; // getConfig
+	public static boolean[] occupied;
+	static long totalReadBytes = 0;
+	static long fileSize = 0; // getFileInfo
+	public static int myPort = 8002;
+
+	static void getConfig(String config_txt, String filename_txt) {
+		try {
+			String configuration = config_txt;
+			File configFile = new File(configuration);
+			BufferedReader configReader = new BufferedReader(new FileReader(configFile));
+			StringTokenizer st;
+			int peerNum = 4;
+			peerIp = new String[peerNum];
+			port = new int[peerNum];
+			occupied = new boolean[peerNum];
+			for (int i = 0; i < peerNum; i++) {
+				occupied[i] = false;
+				st = new StringTokenizer(configReader.readLine());
+				peerIp[i] = st.nextToken();
+				port[i] = Integer.parseInt(st.nextToken());
+				if (port[i] == Peer.myPort) {
+					i--;
+				}
+			}
+			configReader.close();
+			configReader = new BufferedReader(new FileReader(filename_txt));
+			filename = configReader.readLine();
+			configReader.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	public static void updateFileInfo(int bitmapLength, int remain, long fileSize) {
+		Peer.bitmapLength = bitmapLength;
+		Peer.remain = remain;
+		Peer.finalBitmap = new int[bitmapLength];
+		for (int i = 0; i < finalBitmap.length; i++) {
+			if (i < finalBitmap.length - 1) {
+				Peer.finalBitmap[i] = -1;
+			} else {
+				/*
+				Peer.finalBitmap[i] = 0;
+				if (remain == 0) {
+					Peer.finalBitmap[i] = -1;
+				}
+				for (int j = 0; j < remain; j++) {
+					Peer.finalBitmap[i] <<= 1;
+					Peer.finalBitmap[i] |= 1;
+				}
+				*/
+				Peer.finalBitmap[i] = remain;
+			}
+		}
+		Peer.presentBitmap = new int[bitmapLength];
+		for (int i = 0; i < bitmapLength; i++) {
+			Peer.presentBitmap[i] = 0;
+		}
+		Peer.fileSize = fileSize;
+		Peer.presentBitmap = new int[Peer.bitmapLength];
+		Peer.willBeBitmap = new int[Peer.bitmapLength];
+		for (int i = 0; i < Peer.bitmapLength; i++) {
+			Peer.presentBitmap[i] = 0;
+			Peer.willBeBitmap[i] = 0;
+		}
+		System.out.println(Peer.presentBitmap[bitmapLength - 1]);
+	}
+
+	static void updatePresentFileInfo() {
+		Peer.presentBitmap = new int[Peer.bitmapLength];
+	}
+
+	public static boolean isNotFinished() {
+		if (fileSize == 0) {
+			return true;
+		}
+		while(Peer.presentBitmap[Peer.bottom] == -1) {
+			Peer.bottom++;
+		}
+		for (int i = bottom; i < bitmapLength; i++) {
+			if ((i != bitmapLength - 1) && (presentBitmap[i] != -1)) {
+				return true;
+			} else if ((i == bitmapLength - 1) && (presentBitmap[i] != finalBitmap[i])) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public static void main(String[] args) throws Exception {
+		double startTime = 0;
+		double presentTime = 0;
+		double endTime = 0;
+
+		Peer.getConfig(args[0], args[1]);
+		
+
+		Peer.fileSize = -1;
+		Peer.bottom = 0;
+		
+		File file = new File(".\\From\\" + Peer.filename);
+		
+
+		if ((fileSize = file.length()) != 0) {
+			int tradeNum = (int) fileSize / BUFFER_SIZE;
+			remain = (int) fileSize % BUFFER_SIZE;
+			remain = (remain == 0) ? 0 : 1;
+			tradeNum += remain;
+			remain = tradeNum % 32;
+			bitmapLength = (tradeNum / 32) + ((remain != 0) ? 1 : 0);
+
+			finalBitmap = new int[bitmapLength];
+
+			for (int i = 0; i < bitmapLength; i++) {
+				if (i < bitmapLength - 1) {
+					finalBitmap[i] = -1;
+				} else {
+					finalBitmap[i] = 0;
+					if (remain == 0) {
+						finalBitmap[i] = -1;
+					}
+					for (int j = 0; j < remain; j++) {
+						finalBitmap[i] <<= 1;
+						finalBitmap[i] |= 1;
+					}
+				}
+			}
+			presentBitmap = new int[bitmapLength];
+			for (int i = 0; i < bitmapLength; i++) {
+				presentBitmap[i] = finalBitmap[i];
+			}
+		}
+
+		Thread upload = new Thread(new Upload(), "Upload_Neighbor");
+		upload.start();
+
+		if (Peer.fileSize == 0) {
+
+			Thread[] download = new Thread[3];
+			for (int i = 0; i < 3; i++) {
+				download[i] = new Thread(new Download(i), "Download_Neighbor" + i);
+				download[i].start();
+			}
+
+			startTime = System.currentTimeMillis();
+			while (Download.loop < 100 && Peer.isNotFinished()) {
+				Thread.sleep(1000);
+				if (fileSize != 0) {
+					System.out.println("In progress: " + totalReadBytes + "/" + fileSize + " Byte(s) ("
+							+ (totalReadBytes * 100 / fileSize) + " %)");
+				}
+			}
+			System.out.println("In progress: " + totalReadBytes + "/" + fileSize + " Byte(s) ("
+					+ (totalReadBytes * 100 / fileSize) + " %)");
+			endTime = System.currentTimeMillis();
+
+			double diffTime = (endTime - startTime) / 1000;
+
+			System.out.println("\nFile download complete");
+			System.out.println("time: " + diffTime + " second(s)");
+
+			for (int i = 0; i < 3; i++) {
+				download[i].interrupt();
+			}
+		}
+		
+		
+		upload.join();
+
+		/*
+		 * upload.join();
+		 * 
+		 * try {
+		 * 
+		 * 
+		 * dos.writeBytes(filename + "\n");
+		 * 
+		 * st = new StringTokenizer(dis.readLine()); bitmapLength =
+		 * Integer.parseInt(st.nextToken()); remain = Integer.parseInt(st.nextToken());
+		 * fileSize = Long.parseLong(st.nextToken());
+		 * 
+		 * if (bitmapLength == -1) { System.out.println("File not Exist"); dos.close();
+		 * dis.close(); socket.close(); System.exit(0); }
+		 * 
+		 * finalBitmap = 0; if (remain == 0) { finalBitmap = -1; } for (int j = 0; j <
+		 * remain; j++) { finalBitmap <<= 1; finalBitmap |= 1; }
+		 * 
+		 * FileOutputStream fos = new FileOutputStream(".\\To\\" + filename);
+		 * InputStream is = socket.getInputStream();
+		 * 
+		 * double startTime = System.currentTimeMillis(); byte[] buffer = new
+		 * byte[BUFFER_SIZE]; int readBytes; presentBitmap = 0;
+		 * 
+		 * while (bitmapIndex != bitmapLength - 1 || presentBitmap != finalBitmap) {
+		 * dos.writeBytes(bitmapIndex + "\n"); serverBitmap =
+		 * Integer.parseInt(dis.readLine()); canGetBitmap = serverBitmap &
+		 * (~presentBitmap); int i = 0; int tmp = 1; while (true) { if ((canGetBitmap &
+		 * tmp) == 0) { i++; tmp <<= 1; } else { dos.writeBytes(i + "\n"); break; } }
+		 * fos.getChannel().position(10000 * (32 * bitmapIndex + i)); readBytes =
+		 * is.read(buffer); fos.write(buffer, 0, readBytes); totalReadBytes +=
+		 * readBytes; System.out.println("In progress: " + totalReadBytes + "/" +
+		 * fileSize + " Byte(s) (" + (totalReadBytes * 100 / fileSize) + " %)");
+		 * presentBitmap |= tmp; if (presentBitmap == -1) { bitmapIndex++; presentBitmap
+		 * = 0; } } dos.writeBytes("-1\n");
+		 * 
+		 * double endTime = System.currentTimeMillis(); double diffTime = (endTime -
+		 * startTime) / 1000;
+		 * 
+		 * System.out.println("\nFile download complete"); System.out.println("time: " +
+		 * diffTime + " second(s)");
+		 * 
+		 * is.close(); dos.close(); dis.close(); fos.close(); socket.close(); } catch
+		 * (IOException e) { // TODO Auto-generated catch block e.printStackTrace(); }
+		 */
+	}
+}

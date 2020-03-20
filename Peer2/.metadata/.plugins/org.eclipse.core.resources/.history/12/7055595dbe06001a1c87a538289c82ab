@@ -1,0 +1,166 @@
+/*import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.InputStreamReader;
+import java.net.Socket;
+
+public class Client {
+
+	public static void main(String args[]) throws Exception {
+		
+		String sentence;
+		String modifiedSentence;
+		
+		BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
+		
+		System.out.println("inFromUser");
+		
+		Socket clientSocket = new Socket("127.0.0.1", 6789);
+		
+		System.out.println("clientSocket");
+		
+		DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
+		
+		System.out.println("outToServer");
+		
+		BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+		
+		System.out.println("inFromServer");
+		
+		sentence = inFromUser.readLine();
+		
+		System.out.println("sentence");
+		
+		outToServer.writeBytes(sentence + '\n');
+		
+		System.out.println("writeBytes");
+		
+		modifiedSentence = inFromServer.readLine();
+		
+		System.out.println("FROM SERVER : " + modifiedSentence);
+		
+		
+		clientSocket.close();
+
+		System.out.println("close");
+		
+		}
+	
+}
+*/
+
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.*;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.StringTokenizer;
+ 
+public class Client {
+    public static final int BUFFER_SIZE = 10000;
+    public static void main(String[] args) {
+        int port =  7777;
+        // String filename = "C:\\Users\\jinta\\Desktop\\To\\03.mp4";              //String filename = "test.mp4"; //저장할 파일 이름
+        String filename;
+        int[] finalBitmap;
+        int presentBitmap;
+        int bitmapLength;
+        int canGetBitmap;
+        int remain;
+        int bitmapIndex = 0;
+        int request;
+        int clientBitmap;
+         
+        try {
+            ServerSocket server = new ServerSocket(port);
+            
+            while(true) {
+            System.out.println("This server is listening... (Port: " + port  + ")");
+            Socket socket = server.accept();  //새로운 연결 소켓 생성 및 accept대기
+            InetSocketAddress isaClient = (InetSocketAddress) socket.getRemoteSocketAddress();
+             
+            System.out.println("A client("+isaClient.getAddress().getHostAddress()+
+                    " is connected. (Port: " +isaClient.getPort() + ")");
+             
+            BufferedReader dis = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
+            
+            StringTokenizer st = new StringTokenizer(dis.readLine());
+            bitmapLength = Integer.parseInt(st.nextToken());
+            remain = Integer.parseInt(st.nextToken());
+            
+            finalBitmap = new int[bitmapLength];
+            
+            for (int i = 0; i < finalBitmap.length; i++) {
+            	if (i < finalBitmap.length - 1) {
+            		finalBitmap[i] = -1;
+            	}
+            	else {
+            		finalBitmap[i] = 0;
+            		if (remain == 0) {
+            			finalBitmap[i] = -1;
+            		}
+            		for (int j = 0; j < remain; j++) {
+            			finalBitmap[i] <<= 1;
+            			finalBitmap[i] |= 1;
+            		}
+            	}
+            }
+            
+            
+            FileOutputStream fos = new FileOutputStream(filename);
+            InputStream is = socket.getInputStream();
+             
+            double startTime = System.currentTimeMillis(); 
+            byte[] buffer = new byte[BUFFER_SIZE];
+            int readBytes;
+            presentBitmap = 0;
+            
+            
+            
+            while (bitmapIndex != finalBitmap.length - 1 || presentBitmap != finalBitmap[bitmapLength - 1]){
+            	dos.writeBytes(bitmapIndex + "\n");
+            	clientBitmap = Integer.parseInt(dis.readLine());
+            	canGetBitmap = clientBitmap & (~presentBitmap);
+            	int i = 0;
+            	int tmp = 1;
+            	while(true) {
+            		if ((canGetBitmap & tmp) == 0) {
+            			i++;
+            			tmp <<= 1;
+            		}
+            		else {
+            			dos.writeBytes(i + "\n");
+            			break;
+            		}
+            	}
+            	fos.getChannel().position(10000 * (32 * bitmapIndex + i));
+            	readBytes = is.read(buffer);
+            	fos.write(buffer, 0, readBytes);
+            	presentBitmap |= tmp;
+            	if (presentBitmap == -1) {
+            		bitmapIndex++;
+            		presentBitmap = 0;
+            	}
+            }
+            dos.writeBytes("-1\n");
+            
+            double endTime = System.currentTimeMillis();
+            double diffTime = (endTime - startTime)/ 1000;;
+ 
+            System.out.println("time: " + diffTime+ " second(s)");
+             
+            is.close();
+            dos.close();
+            dis.close();
+            fos.close();
+            socket.close();
+           server.close();
+            }
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+    }
+}

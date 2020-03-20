@@ -1,0 +1,48 @@
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.InputStreamReader;
+import java.net.Socket;
+
+public class Client {
+
+	public static void main(String args[]) throws Exception {
+		
+		String sentence;
+		String modifiedSentence;
+		
+		BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
+		
+		System.out.println("inFromUser");
+		
+		Socket clientSocket = new Socket("127.0.0.1", 6789);
+		
+		System.out.println("clientSocket");
+		
+		DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
+		
+		System.out.println("outToServer");
+		
+		BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+		
+		System.out.println("inFromServer");
+		
+		sentence = inFromUser.readLine();
+		
+		System.out.println("sentence");
+		
+		outToServer.writeBytes(sentence + '\n');
+		
+		System.out.println("writeBytes");
+		
+		modifiedSentence = inFromServer.readLine();
+		
+		System.out.println("FROM SERVER : " + modifiedSentence);
+		
+		
+		clientSocket.close();
+
+		System.out.println("close");
+		
+		}
+	
+}

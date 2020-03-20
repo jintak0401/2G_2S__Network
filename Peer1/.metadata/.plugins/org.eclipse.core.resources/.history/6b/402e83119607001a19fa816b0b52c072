@@ -1,0 +1,29 @@
+
+public class Upload implements Runnable {
+	
+	ServerSocket server;
+	Socket socket;
+	int port = Client.myPort;
+	String filename;
+	String fileInfo;
+	int tradeNum;
+	int remain;
+	int bitmapLength;
+	int[] bitmap;
+
+	long totalReadBytes = 0;
+	byte[] buffer;
+	int readBytes;
+	int bitmapIndex;
+	int position;
+	
+	public Upload() {
+		try {
+			
+		}
+	}
+
+	public void run() {
+		
+	}
+}
